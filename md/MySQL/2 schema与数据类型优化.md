@@ -12,7 +12,8 @@ import java.sql.PreparedStatement;
 public class Test {
     public static void main(String[] args) throws Exception{
         Class.forName("com.mysql.jdbc.Driver");
-        Connection conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/db1","root","123456");
+        Connection conn = DriverManager
+            .getConnection("jdbc:mysql://localhost:3306/db1","root","123456");
         PreparedStatement pstmt = conn.prepareStatement("insert into psn2 values(?,?)");
         for (int i = 0; i < 20000; i++) {
             pstmt.setInt(1,i);
@@ -23,7 +24,6 @@ public class Test {
         conn.close();
     }
 }
-
 ```
 
 ### 简单就好
@@ -169,25 +169,20 @@ date类型用于保存1000-01-01到9999-12-31之间的日期
 
 ```sql
 create table enum_test(e enum('fish','apple','dog') not null);
-
 insert into enum_test(e) values('fish'),('dog'),('apple');
-
 select e+0 from enum_test;
-
 alter table enum_test modify e enum('fish', 'dog', 'apple') not null primary key ;
-
 select e+0 from enum_test where e = 'dog';
 ```
 
 ### 特殊类型数据
 
-人们经常使用varchar(15)来存储ip地址，然而，它的本质是32位无符号整数不是字符串，可以使用INET_ATON()和INET_NTOA函数在这两种表示方法之间转换
+人们经常使用 varchar(15) 来存储ip地址，然而，它的本质是32位无符号整数不是字符串，可以使用INET_ATON()和INET_NTOA函数在这两种表示方法之间转换
 
 案例：
 
 ```sql
 select inet_aton('1.1.1.1')
-
 select inet_ntoa(16843009)
 ```
 
