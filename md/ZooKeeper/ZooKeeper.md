@@ -8,113 +8,6 @@
 
 [ZooKeeper 官网文档](https://zookeeper.apache.org/doc/current/zookeeperOver.html)
 
-## 核心概念
-
-### 集群角色
-
-#### Leader 
-
-状态为 LEADING 的节点，为客户端提供读写服务。
-
-主导「过半写成功」策略，即将写事务请求同步给其他节点，且需要保证事务的顺序性。
-
-#### Follower
-
-状态为 FOLLOWING 的节点，能提供读服务。
-
-参与 Leader 选举，也参与「过半写成功」策略（将写事务请求转发给 Leader）。
-
-#### Observer
-
-状态为 OBSERING 的节点，能提供读服务。
-
-不参与 Leader 选举，也不参与「过半写成功」策略。
-
-可以用来线性扩展集群的 QPS 性能。
-
-### Session（会话）
-
-客户端会话
-
-### Znode（数据节点）
-
-在 ZooKeeper 中，节点分为两类，一种是构成集群的机器节点，另一种是数据模型中的数据单元，即数据节点
-
-ZooKeeper 将所有数据存储在内存中，数据模型是一颗文件树
-
-Znode 是 ZooKeeper 中数据的最小单元，每个 Znode 都可以保存数据，还可以挂载子节点
-
-通过 Znode 可以实现数据的原子性读写，但每个 Znode 存储的数据很小，通常在1MB 以内。
-
-#### Znode 类型
-
-##### PERSISTENT - 持久化目录节点
-
-除非主动进行移除，否则该节点将一直保存在 ZooKeeper 上
-
-##### EPHEMERAL - 临时节点
-
-该节点的生命周期与客户端绑定，当客户端会话失效时，该节点将被删除
-
-##### PERSISTENT_SEQUENTIAL/EPHEMERAL_SEQUENTIAL - （持久化/临时）顺序节点
-
-当这个节点被创建时，ZooKeeper 会自动在节点名后追加一个整型数字，该数字是一个由父节点维护的自增数
-
-分为持久化节点和临时节点两种
-
-### 版本
-
-在 Znode 中维护了一个数据结构 Stat，记录了每个 Znode 都具有的三种不同类型的版本信息：version （当前 Znode 数据内容的版本号）、cversion（当前 Znode 子节点的版本号）和 aversion （当前 Znode 的 ACL 变更版本号）
-
-版本的实质是数据内容、子节点或者 ACL 的修改次数
-
-ZooKeeper 通过这种特性保障了乐观锁机制的实现
-
-
-### Watcher（事件监听器）
-
-ZooKeeper 允许客户端注册一些 Watcher，去监听它关心的目录节点，而且当目录节点发生变化（如数据改变、被删除、子目录节点增加删除）时，ZooKeeper 会将事件通知客户端
-
-#### 特性
-
-##### 一次性
-
-无论是服务端还是客户端，一个 Watcher 一旦被触发，ZooKeeper 都会想起从相应的储存中移除
-
-这样的设计有效地减轻了服务器的压力
-
-开发人员需要注意在 Watcher 的使用上要反复注册
-
-##### 客户端串行执行
-
-客户端 Watcher 回调的过程是一个串行同步的过程，这保证了顺序性。
-
-开发人员需要注意千万不要因为一个 Watcher 的处理逻辑影响了整个客户端的 Watcher 回调
-
-##### 轻量级
-
-WatchedEvent 是 ZooKeeper 整个 Watcher 通知机制的最小通知单元，整个数据结构中只包含了三部分：通知状态、事件类型和节点路径
-
-也就是说 Watcher 通知只会告诉客户端在哪里发生了什么事件，而不会说明事件的具体内容，这需要客户端主动去重新获取数据
-
-另外，客户端向服务端注册 Watcher 时，并不会把客户端真实的 Watcher 对象传递到服务端，仅仅是在客户端请求中使用 boolean 类型属性进行了标记，同时服务端也仅仅只是保存了当前连接的 ServerCnxn 对象
-
-### ACL（访问控制列表 ，Access Control Lists ）策略
-
-ZooKeeper 采用 ACL 来进行权限控制，类似于 UNIX 文件系统的权限控制。
-
-##### 权限
-
-**CREATE**：创建**子节点**的权限
-
-**READ**：获取节点数据和子节点列表的权限
-
-**WRITE**：更新节点数据的权限
-
-**DELETE**：删除**子节点**的权限
-
-**ADMIN**：设置节点 ACL 的权限
-
 ## 保证
 
 ### 1. 顺序一致性
@@ -131,6 +24,8 @@ ZooKeeper 是主从模型，因此所有的写操作都会在「主节点」上�
 
 客户端将看到相同的服务视图，而不管它连接到集群中的哪一台 ZooKeeper 服务器。
 
+即便开启会话时，
+
 ### 4. 可靠性（持久性）
 
 一旦应用更新，数据将被持久化，直到数据被再次更新。
@@ -145,126 +40,138 @@ ZooKeeper 是主从模型，因此所有的写操作都会在「主节点」上�
 
 客户端看到的服务视图保证在特定时间范围内是最新的。
 
-# ZAB （ZooKeeper Atomic Broadcast）协议
+# Watcher（事件监听器）
 
-特别为 ZooKeeper 设计的、支持崩溃恢复的原子广播协议，是一种类似于 2PC 的协议。
+ZooKeeper 允许客户端注册一些 Watcher，去监听它关心的目录节点，而且当目录节点发生变化（如数据改变、被删除、子目录节点增加删除）时，ZooKeeper 会将事件通知客户端（通过节点的变化产生事件）
 
-通过 ZAB 协议，ZooKeeper 可以进行集群间主备节点的数据同步，保证数据的一致性。
+## Watcher通知机制
 
-[深入浅出 Zookeeper 中的 ZAB 协议](https://network.51cto.com/article/704705.html)
+Watcher机制主要包括客户端线程、客户端 Watch Manager 和 ZooKeeper 服务器三部分。
 
-## 协议具体内容
+工作流程可以简述为，客户端在向 ZooKeeper 服务器注册 Watcher 的同时，会将 Watcher 对象存储在客户端的 Watch Manager 中。
 
-ZAB 协议包括两种基本模式：数据恢复模式和消息广播模式。
+当 ZooKeeper 服务器端触发 Watcher 事件后，会向客户端发送通知，客户端线程从 Watch Manager 中取出对应的 Watcher 对象来执行回调逻辑。
 
-当 ZooKeeper 处于启动过程中，或者当 Leader 挂了时，亦或者集群中已经不存在过半的服务器与 Leader 保持正常通信时，ZAB 协议就会**进入数据恢复模式**并选举产生新的 Leader。
+### Watcher接口
 
-当选举产生了新的Leader，同事集群中已经有过半的机器与该 Leader 完成了状态同步之后，ZAB 协议就会**进入消息广播模式**。
+在 ZooKeeper 中， 接口类`Watcher`用于表示一个标准的事件处理器， 其定义了事件通知相关的逻辑。
 
-当一台同样遵守 ZAB 协议的服务器**新加入集群**时，就会自觉进入数据恢复模式，即找到 Leader ，并与其进行数据同步，然后一起参与到消息广播流程中去。
+在`Watcher`的内部接口类`Event`中，包含`KeeperState`和`EventType`两个枚举类， 分别代表了通知状态和事件类型
 
-### 消息广播模式
+`Watcher`中还定义了事件的回调方法：`process (WatchedEvent event)`。
 
-在消息广播过程中，Leader 会为每个 Follower 都分配一个单独队列，然后将需要广播的 Proposal 依次放入这些 FIFO 队列中去。
+### Watcher事件
 
-每一个 Follower 在接收到一个 Proposal 之后，都会先以事务日志的形式写入到本地磁盘，并在成功写入后，反馈给 Leader 一个 Ack 响应。
+[Watcher通知状态与事件类型一览]()
 
-当 Leader 收到超过半数 Follower 的 Ack 响应后，就会广播一个 Commit 消息给所有 Follower 以通知其进行事务提交，同时 Leader 自身也会完成对事务的提交。
+同一个事件类型在不同的通知状态中代表的含义有所不同。
 
-每一个 Follower 在接收到一个 Commit 消息之后，都会完成对事务的提交。
+### 回调方法process ()
 
-### 崩溃恢复模式
+当 ZooKeeper 向客户端发送一个 Watcher 事件通知时，客户端就会回调相应的`process`方法对服务端事件进行处理。
 
-#### 基本特性
+在这个服务端传递到客户端的过程中，ZooKeeper 使用了`WatchedEvent`对象来封装服务端事件并传递给客户端，`WatchedEvent`也是 ZooKeeper 整个 Watcher 通知机制的最小通知单元。
 
-确保 Follower 提交「已经在 旧Leader 上提交的事务」，同时确保旧 Leader 丢弃「只在旧Leader 上被提出的事务」
+但是`WatchedEvent`实际上只是一个逻辑事件， 是服务端和客户端程序执行过程中所需的逻辑对象，为了便于传输，ZooKeeper 使用了实现序列化接口的`WatcherEvent`对象来作为网络传输对象。
 
-#### ZooKeeper 选举
+服务端在生成`WatchedEvent`事件之后，会调用`getWrapper`方法将自己包装成一个可序列化的`WatcherEvent`事件，之后通过网络传输到客户端。
 
-以**服务器启动时期**的 Leader 选举为例子
+客户端在接收到这个服务端的事件对象后， 首先会将`WatcherEvent`事件还原成一个`WatchedEvent`事件， 并传递给`process`方法处理，而回调方法`process`的入参也就是这个`WatchedEvent`事件。
 
-##### 1.  投票给自己
+通过这种方式我们就能够解析出完整的服务端事件了。
 
-投票信息（Vote）包含节点ID (SID) 和事务ID（ZXID）
+还需要注意的一点是， 无论是`WatcherEvent`还是`WatchedEvent`，其对 ZooKeeper 服务端事件的封装都是极其简单的，只包含了每一个事件的三个基本属性： 通知状态`keeperState`、事件类型`eventType`和节点路径`path`。
 
-SID 是配置好的，而且是唯一的，和 myid 的值一样；ZXID 是唯一的递增编号
+因此客户端无法直接从该事件中获取到对应数据节点的原始数据内容以及变更后的新数据内容， 而是需要客户端再次主动去重新获取数据，这也是 Watcher 机制的一个非常重要的特性。
 
-###### ZXID （事务ID）
+### 工作机制
 
-ZXID 是一个64位整数，对于每一个事务请求，ZooKeeper 都会为其分配一个全局唯一的事务ID。
+#### 1. 客户端注册Watcher
 
-其中低32位是一个单调递增的事务计数器，当客户端的每一个事务请求，或者 Leader 产生的每一个事务，其值都会加1
+##### 创建一个 ZooKeeper 客户端对象实例时， 可以向构造方法中传入一个默认的 Watcher
 
-高32位则代表了 Leader 周期 epoch 的编号，当选举产生一个新的 Leader 时，该值就会变成「新 Leader 本地日志中最大事务的 ZXID 的 epoch 值 + 1」；通过 epoch 能够有效地避免不同的 Leader 错误使用相同 ZXID 编号提出不一样事务的
+这个 Watcher 将作为整个 ZooKeeper 会话期间的默认 Watcher，会一直被保存在客户端`ZKWatchManager`的`defaultWatcher`中。
 
-通过 ZXID ，我们可以间接地识别出 ZooKeeper 处理这些更新操作请求的全局顺序。
+##### 通过其他方法注册 Watcher
 
-##### 2. 将投票信息发给集群中的其他节点
+除了构造方法，ZooKeeper 客户端还可以通过`getData`、`getChildren`和`exist`这三个方法来向 ZooKeeper 服务器注册 Watcher，但无论使用哪种方式，注册 Watcher 的工作原理都是一致的。
 
-##### 3. 处理投票
+下面**以`getData`方法为例**来说明：
 
-针对来自其他节点的每一个投票，「节点X」都需要将其与自己的投票进行判断、PK和更新投票信息三个操作。
+`getData`方法用于获取指定节点的数据内容，其实它主要有两个方法：`public byte[] getData(String path, boolean watch, Stat stat)`、`public byte[] getData(final String path, Watcher watcher, Stat stat)`。前者通过一个 boolean 参数来标识是否使用默认 Watcher 来进行注册；两个方法的具体注册逻辑是一致的。
 
-当「节点X」没有需要处理的投票时，它会将投票信息向集群中的所有节点发送出去（即便最后的PK结果是「节点X」自己的投票被选中了）。
+在向`getData`方法注册 Watcher 后， 客户端首先创建当前客户端请求`GetDataRequest`，并根据是否**使用Watcher监听**进行标记 ，同时会封装一个 Watcher 的注册信息`WatchRegistration` 对象， 用于暂时保存数据节点路径和 Watcher 的对应关系。
 
-###### 3.1 判断
+在 ZooKeeper 中，`Packet`可以被看作一个最小的通信协议单元，用于进行客户端与服务端之间的网络传输。
 
-「节点X」判断另一个节点发来的投票**是否是本轮投票**，以及该节点**是否处于 LOOKING 状态**
+任何需要传输的对象都需要包装成一个`Packet`对象，因此在`ClientCnxn`中`WatchRegistration`会被封装到`Packet`中去，然后放入发送队列中等待客户端发送。
 
-###### 3.2 PK
+随后，ZooKeeper 客户端就会向服务端发送这个请求，同时等待请求的返回。
 
-「节点X」会将自己的投票和另一个节点发来的投票进行 PK
+客户端完成请求发送后，会由`ClientCnxn`中的`SendThread`线程的`readResponse`方法负责接收来自服务端的响应，最后在`finishPacket`方法中，`Packet` 中 `WatchRegistration`调用`register`方法将对应的 Watcher 并注册到`ZKWatchManager`中去（因为是以`getData`方法为例，`WatchRegistration`的实现类`DataWatchRegistration`最终会将 Watcher 保存到`ZKWatchManager`的`dataWatches`中去）。
 
-比较规则如下：
+##### Watcher 实体的所有数据都会随着客户端请求被发送到服务端吗?
 
-优先选取 ZXID 较大的投票；如果 ZXID 相等，则优先选取 SID 较大的投票
+不会。
 
-###### 3.3 更新投票信息
+如果客户端注册的所有 Watcher 都被传递到服务端的话， 那么服务端肯定会出现内存紧张或其他性能问题了。
 
-「节点X」根据PK结果将投票信息更新。
+在 ZooKeeper 的设计中充分考虑到了这个问题：在上面的流程中， 我们虽然把 `WatchRegistration` 封装到了`Packet`对象中去， 但事实上， 在实际的底层网络传输序列化过程中， 并没有将`WatchRegistration`对象完全地序列化到底层字节数组中去。
 
-##### 4. 统计投票
+在`Packet.createBB()`方法中， ZooKeeper 只会将`requestHeader`和`request`两个属性进行序列化。
 
-每一轮投票，「节点X」都会统计所有节点的投票信息，判断是否有某个节点的票数达到了过半机器数（Quorum）
+#### 2. 服务端处理Watcher
 
-如果有，就将该节点作为 Leader
+#### 3. 客户端回调Watcher
 
-如果集群中的总节点数为 n，Quorum = `( n/2 + 1 )`
+## 特性
 
-##### 5. 更新节点状态：
+### 一次性
 
-一旦确定了 Leader，每个节点就会更新自己的节点状态
+无论是服务端还是客户端，一个 Watcher 一旦被触发，ZooKeeper 都会想起从相应的储存中移除
 
-Leader，更新节点状态为 LEADING
+这样的设计有效地减轻了服务器的压力
 
-其他节点作为 Follower，更新节点状态为 FOLLOWING
+开发人员需要注意在 Watcher 的使用上要反复注册
 
-##### 服务器运行期间的 Leader 选举
+### 客户端串行执行
 
-当 Leader 挂了之后，余下的非 Observer 节点都会将自己的节点状态变更为 LOOKING
+客户端 Watcher 回调的过程是一个串行同步的过程，这保证了顺序性。
 
-除了上述步骤外的其他选举步骤，与启动期间区别不大。
+开发人员需要注意千万不要因为一个 Watcher 的处理逻辑影响了整个客户端的 Watcher 回调
 
-#### 数据同步
+### 轻量级
 
-所有正常运行的节点，要么成为 Leader ，要么成为 Follower 并与 Leader 保持同步。
+WatchedEvent 是 ZooKeeper 整个 Watcher 通知机制的最小通知单元，整个数据结构中只包含了三部分：通知状态、事件类型和节点路径
 
-所以完成 Leader 选举之后，Leader 首先会确认事务日志中的所有 Proposal 是否都已经被集群中过半的机器提交了
+也就是说 Watcher 通知只会告诉客户端在哪里发生了什么事件，而不会说明事件的具体内容，这需要客户端主动去重新获取数据
 
-只有确认完成，ZooKeeper 集群才能正式开始工作（即接受客户端的事务请求，然后提出新的提案）
+另外，客户端向服务端注册 Watcher 时，并不会把客户端真实的 Watcher 对象传递到服务端，仅仅是在客户端请求中使用 boolean 类型属性进行了标记，同时服务端也仅仅只是保存了当前连接的 ServerCnxn 对象
 
-##### 1. Leader 发送数据
+# 会话
 
-Leader 会为每一个 Follower 准备一个队列，并将那些没有被各 Follower 同步的事务以 Proposal 消息的方式逐个发送给 Follower，并在 每一个 Proposal 消息后面紧接着发送一个 Commit 消息，表示该事务已经被提交。
+## 场景
 
-##### 2. Follower 确认数据
+### 统一配置管理
 
-Follower 会将所有尚未同步的 Proposal 都同步过来，并成功应用到本地数据库中
+### 分组管理
 
-##### 3. Leader 将 Follower 加入到可用列表中
+path结构
 
-##### 策略
+### 统一命名
 
-1.新选举出来的 Leader 拥有集群中最大的 ZXID ，表示新 Leader 一定具有所有已经提交的提案，包括「已经在 旧Leader 上提交的事务」
+sequential
 
-2.旧 Leader 在恢复后，将会与新 Leader 进行数据同步，对于「只在旧Leader 上被提出的事务」，由于其 ZXID 小于新 Leader 的最大ZXID，因此将被丢弃
+### 同步
+
+临时节点
+
+#### 分布式锁
+
+锁依托一个父节点，且具备 -s 
+
+代表父节点下可以有多把锁
+
+##### 队列式事务的锁
+
+#### HA 选主
