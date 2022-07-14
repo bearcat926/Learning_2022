@@ -149,13 +149,13 @@ ZooKeeper 客户端向服务器发送这个超时时间后，服务器会根据�
 
 #### 1. 请求接收
 
-#####1.  IO层接收来自客户端的请求
+##### 1.  IO层接收来自客户端的请求
 
 在 ZooKeeper 中，`NIOServerCnxnFactory`线程会接收来自客户端请求，并将`NIOServerCnxn`对象从底层网络IO`attachment`出来。
 
 `NIOServerCnxn`实例维护了一个服务器与客户端之间的TCP长连接，ZooKeeper 通过调用它的`doIO`方法处理客户端与服务端的通信。
 
-#####2.  判断是否是客户端「会话创建」请求。
+##### 2.  判断是否是客户端「会话创建」请求。
 
 对于当前请求，`NIOServerCnxn`会先检查这是一个「读IO事件」还是「IO写事件」，因为此处是一个「会话创建」请求，因此是「读IO事件」。
 
@@ -308,7 +308,7 @@ ZooKeeper 对于每个客户端请求的处理模型采用了典型的责任链�
 
 在完成这些操作后，`FinalRequestProcessor`会调用`zks.finishSessionInit(request.cnxn, true);`进行最后的响应处理。
 
-#####21. 创建响应 ConnectResponse
+##### 21. 创建响应 ConnectResponse
 
 `ConnectResponse`就是一个会话创建成功后的响应，包含了当前客户端与服务端之间的通信协议版本号`protocolVersion`、会话超时时间`timeOut`、`sessionId`和会话密码`passwd`。
 
