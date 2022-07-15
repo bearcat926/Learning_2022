@@ -70,7 +70,7 @@ Follower 服务器在`followLeader`方法中接收到 Leader 发来的这个提�
 
 在「Commit 流程」处理的同时，Leader 已经根据当前事务请求生成了一个提议 Proposal，并广播给了所有的 Follower 服务器。
 
-因此，在这个时候，「Commit 流程」需要等待投票结束，Leader 服务器广播 COMMIT 消息，并 #唤醒「Commit 流程」
+因此，在这个时候，「Commit 流程」需要等待投票结束，Leader 服务器广播 COMMIT 消息，并#唤醒「Commit 流程」
 
 ### 5. 提交请求
 
