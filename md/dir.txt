@@ -20,7 +20,6 @@
 ./md/MySQL/索引优化分析案例.md
 ./md/MySQL/范围分区.md
 ./md/MySQL/覆盖索引.md
-./md/MySQL调优.md
 
 ./md/Redis
 ./md/Redis/Redis深度历险.pdf
@@ -38,3 +37,4 @@
 ./md/设计模式/尚硅谷图解Java设计模式.pdf
 
 ./md/多路复用.md
+./md/Blog_URL.md
